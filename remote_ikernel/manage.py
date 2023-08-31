@@ -261,7 +261,7 @@ def add_kernel(
     # so get rid of evrything just in case.
     kernel_name = re.sub(r"\W", "_", kernel_name)
     kernel_json = {
-        "display_name": " ".join(display_name),
+        "display_name": name,
         "argv": argv,
     }
 

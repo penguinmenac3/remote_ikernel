@@ -414,9 +414,9 @@ class RemoteIKernel(object):
         self.log.info("SLURM command: '{0}'.".format(srun_cmd))
         srun = self._spawn(srun_cmd)
         # Hopefully this text is universal?
-        srun.expect("srun: Node (.*), .* tasks started")
+        srun.expect("srun:(.*)Node (.*), .* tasks started")
 
-        node = srun.match.groups()[0]
+        node = srun.match.groups()[1].decode("utf-8")
         self.log.info("Established session on node: {0}.".format(node))
         self.host = node
 
@@ -462,20 +462,25 @@ class RemoteIKernel(object):
         # directory on the remote machine.
         if self.workdir:
             self.log.info("Remote working directory {0}.".format(self.workdir))
+            self.log.info('> cd "{0}"'.format(self.workdir))
             conn.sendline('cd "{0}"'.format(self.workdir))
         else:
             self.log.info("Current working directory {0}.".format(self.cwd))
+            self.log.info('> cd "{0}"'.format(self.cwd))
             conn.sendline('cd "{0}"'.format(self.cwd))
 
         # Create a temporary file to store a copy of the connection information
         # Delete the file if it already exists
+        self.log.info("> rm -f {0}".format(kernel_name))
         conn.sendline("rm -f {0}".format(kernel_name))
         file_contents = json.dumps(self.connection_info)
+        self.log.info("> echo '{0}' > {1}".format(file_contents, kernel_name))
         conn.sendline("echo '{0}' > {1}".format(file_contents, kernel_name))
 
         # Is this the best place for a pre-command? I guess people will just
         # have to deal with it. Pass it on as is.
         if self.precmd:
+            self.log.info(f"> {self.precmd}")
             conn.sendline(self.precmd)
 
         # Init as a background process so we can delete the tempfile after
@@ -484,13 +489,16 @@ class RemoteIKernel(object):
             host_connection_file=kernel_name, ci=self.connection_info
         )
         self.log.info("Running kernel command: '{0}'.".format(kernel_init))
+        self.log.info(f"> {kernel_init}")
         conn.sendline(kernel_init)
 
         # The kernel blocks further commands, so queue deletion of the
         # transient file for once the process stops. Trying to do this
         # whilst simultaneously starting the kernel ended up deleting
         # the file before it was read.
+        self.log.info("> rm -f {0}".format(kernel_name))
         conn.sendline("rm -f {0}".format(kernel_name))
+        self.log.info("> exit")
         conn.sendline("exit")
 
         # Could check this for errors?
@@ -519,6 +527,7 @@ class RemoteIKernel(object):
 
         # connection info should have the ports being used
         tunnel_command = self.tunnel_cmd.format(**self.connection_info)
+        self.log.info(f"(tun)> {tunnel_command}")
         tunnel = pexpect_spawn(tunnel_command, logfile=self.log)
         check_password(tunnel)
 
@@ -604,6 +613,7 @@ class RemoteIKernel(object):
         connection : pexpect.spawn
             The connection object. This is also attached to the class.
         """
+        self.log.info(f"> {command}")
         if self.connection is None:
             self.connection = pexpect_spawn(command, timeout=timeout, logfile=self.log)
         else:
